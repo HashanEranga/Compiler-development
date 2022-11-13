@@ -47,11 +47,11 @@ extern YYSTYPE cool_yylval;
  *   #define ADD_STRING(c)
  */
 
-/**vaariable to keep track of nested comments**/
+/**nested comments are count using the following variable**/
 int comment_depth;
 
 
-/**function to check length of string**/
+/**methods for getting the text length**/
 
 bool len_check(){
     return (string_buf_ptr+1 < &string_buf[MAX_STR_CONST-1]);
