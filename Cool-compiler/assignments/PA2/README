@@ -106,3 +106,102 @@ Instructions
 Write-up for PA2
 ----------------
 
+## Group Members 
+E/16/127 Harshana P.Y.S
+E/16/275 Perera A.L.H.E
+E/16/332 Samaraweera A.A.R.V
+
+## Lexical Analyzer implementation summary
+For the lexical analysing part to build a lexical analyzer flex is used to identify tokens in the cool language. In this program cool.flex was implemented giving all the necessary token specifications by writing regular expressions as well as some rules were implemented. Initially the flexer contains the following defined parts as shown below. 
+
+1. Declarations : definitions for the c language 
+2. Definitions : Gives definitions for regular expressions 
+3. Rules : For analyzing tokens
+4. Use Subroutines : C code integrations to the lexical analyzer
+
+## Lexical Analyzer Stucture 
+- Integers
+- Type Identifiers
+- Special Notations 
+- Strings 
+- Keywords
+- Whitespaces
+- Comments
+
+### Integers
+Non-empty strings from 0-9 are considered. using the following regular expression
+```flex
+[0-9]+
+```
+### Type Identifiers
+Types are defined where names begin with at least first character been uppercase
+```flex
+[A-Z]([a-zA-Z0-9_])*
+```
+### Object Identifiers 
+Names that starting at least one character starts as a lowercase
+```flex
+[a-z]([a-zA-Z0-9_])*
+```
+
+### Keywords
+Keywords in the cool language is defined. 
+- class
+- else
+- fi
+- if
+- in
+- inherits
+- isvoid
+- let
+- loop
+- pool
+- then
+- case
+- esac
+- new
+- of
+- not
+
+Since the keywords must be exact then following rule was defined to each of the keyword to be case insensitive
+```flex
+(?i:<keyword>)
+```
+Defined as first letter simple and rest case insensitive
+```flex
+true    -> t(?i:rue)
+false   -> f(?i:alse)
+```
+
+### Comments
+#### Single line comments
+Single line of comments are defined as follows
+```flex
+-- single line comment
+```
+#### Multiline comments
+For representing multiline comments subroutines were written using C language
+- (* for begin commenting 
+- (* if again encouter the comment_depth is increased. 
+- EOF is used for denote errors in commenting
+- \n increment the line count while commenting when new line occurs
+- *) for denoting closing commenting
+- . all the other characters were ignored while inside the comment
+
+### Strings 
+Strings are defined within " ". For the string as well states were used. 
+* \" : Begin a string
+* \0 : Return an ERROR when an "String contains null characters"
+* <<EOF>> : EOF errors are denoted as follows. 
+* \n \b and \t : will be append to the string if the length not exceeds. 
+* \c : check for exceeding string length if not append to the string.
+
+### Special notations
+All special notations are passed as it is to the output file except the
+concatanated notations of 
+* LE
+* ASSIGN
+* DARROW
+
+which return tokens from the cool-parser.h
+
