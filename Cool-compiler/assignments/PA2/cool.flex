@@ -7,6 +7,8 @@
  *  output, so headers and global definitions are placed here to be visible
  * to the code in the file.  Don't remove anything that was here initially
  */
+
+
 %{
 #include <cool-parse.h>
 #include <stringtab.h>
@@ -40,18 +42,20 @@ extern int verbose_flag;
 extern YYSTYPE cool_yylval;
 
 /*
- *  Add Your own definitions here
+ *  Add Your own definitions here 
+ * 
+ *   #define ADD_STRING(c)
  */
 
-/** vaariable to keep track of nested comments **/
+/**vaariable to keep track of nested comments**/
 int comment_depth;
 
-/** For checking the length of a string **/
+
+/**function to check length of string**/
+
 bool len_check(){
     return (string_buf_ptr+1 < &string_buf[MAX_STR_CONST-1]);
 }
-
-// nested comments 
 
 %}
 
@@ -59,37 +63,37 @@ bool len_check(){
  * Define names for regular expressions here.
  */
 
-/** This refers to exclusive start condition for COMMENT **/
- %x COMMENT STRING 
 
-/** composite notations **/ 
+
+/* Exclusive start  condition COMMENT */
+
+%x COMMENT STRING 
+
+/* composite notations */
 DARROW          =>
 ASSIGN          <-
 LE              <=
 
-/** integers **/
+/* INTEGERS */
 DIGIT          [0-9]
 INTEGER        [0-9]+
 
-/** type identifier **/
+/* Type and object identifier */
 TYPEID	    [A-Z]([A-Za-z_0-9])*
-
-/** object identifier **/
 OBJECTID    [a-z]([A-Za-z_0-9])*
 
-/** comment definitions **/
+/* COMMENTS */
 BEGIN_COMMENT		\(\*
 END_COMMENT		\*\)
 LINE_COMMENT		--.*
 
-/** new line **/ 
 NEW_LINE		\n
 
-/** strings **/
+/* STRINGS */
 QUOTE			\"
 NULL_CHARACTERS		\\0
 
-/** keywords **/
+/* KEYWORDS*/
 CLASS		(?i:class)
 ELSE		(?i:else)
 FI		(?i:fi)
@@ -108,7 +112,8 @@ NEW		(?i:new)
 OF		(?i:of)
 NOT		(?i:not)
 
-/** True or false with first letter lower case **/
+
+/* True or False with always lower case first letter*/
 FALSE		f(?i:alse)
 TRUE		t(?i:rue)
 
@@ -117,28 +122,32 @@ TRUE		t(?i:rue)
 %%
 
  /*
-  *  Nested comments
+  *  comments
   */
 
-/** keeping track of the line numbers **/
+ /* rule to increment line on newline */
+
 {NEW_LINE}  {curr_lineno++;}
 
-/** comment strings are avoided **/
+ /* ignore comment strings */
 {LINE_COMMENT}	{}
 
-/** rules for handling multiline comment **/ 
+ /* on multiline comment begin start state COMMENT and increment depth */
 {BEGIN_COMMENT}	{
     BEGIN(COMMENT);
     comment_depth++;
-}	
+}		
 
+ /* Check for unmatched closing comment */
 {END_COMMENT} {
     cool_yylval.error_msg = "Unmatched *)";
     return ERROR;
 }
 
+
  /* When in COMMENT state */
 <COMMENT>{
+
     /* Increment comment_depth on new comment open */
     {BEGIN_COMMENT}	{
 			    ++comment_depth;
@@ -148,25 +157,33 @@ TRUE		t(?i:rue)
 		       if(--comment_depth==0)
 			       BEGIN(INITIAL);
 		   }
+
     /* Error when EOF in comment */
     <<EOF>> {
 	BEGIN(INITIAL);
 	cool_yylval.error_msg = "EOF in comment";
 	return ERROR;
     }
-/* increment on new line */
+
+
+    /* increment on new line */
     {NEW_LINE}  {curr_lineno++;}
     \\\n  {curr_lineno++;}
+
     /* reject all other characters inside comment  */
     . {}
+
 }
 
-/*
+
+
+ /*
   *  String constants (C syntax)
   *  Escape sequence \c is accepted for all characters c. Except for 
   *  \n \t \b \f, the result is c.
   *
   */
+
  /*Check string begin with ". If so assign pointer ro string buffer and start
  * STING state*/
 
@@ -174,6 +191,8 @@ TRUE		t(?i:rue)
 	    string_buf_ptr = string_buf;
 	    BEGIN(STRING);
 	}
+
+
 
 <STRING>{
     /* Check for closing " if so append endofline and create entry on string
@@ -305,6 +324,7 @@ TRUE		t(?i:rue)
 	    }
 	}
 }
+
 
  /*
   *  KEYWORDS
