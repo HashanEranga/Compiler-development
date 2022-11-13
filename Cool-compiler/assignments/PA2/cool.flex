@@ -43,13 +43,76 @@ extern YYSTYPE cool_yylval;
  *  Add Your own definitions here
  */
 
+/** vaariable to keep track of nested comments **/
+int comment_depth;
+
+/** For checking the length of a string **/
+bool len_check(){
+    return (string_buf_ptr+1 < &string_buf[MAX_STR_CONST-1]);
+}
+
+// nested comments 
+
 %}
 
 /*
  * Define names for regular expressions here.
  */
 
+/** This refers to exclusive start condition for COMMENT **/
+ %x COMMENT STRING 
+
+/** composite notations **/ 
 DARROW          =>
+ASSIGN          <-
+LE              <=
+
+/** integers **/
+DIGIT          [0-9]
+INTEGER        [0-9]+
+
+/** type identifier **/
+TYPEID	    [A-Z]([A-Za-z_0-9])*
+
+/** object identifier **/
+OBJECTID    [a-z]([A-Za-z_0-9])*
+
+/** comment definitions **/
+BEGIN_COMMENT		\(\*
+END_COMMENT		\*\)
+LINE_COMMENT		--.*
+
+/** new line **/ 
+NEW_LINE		\n
+
+/** strings **/
+QUOTE			\"
+NULL_CHARACTERS		\\0
+
+/** keywords **/
+CLASS		(?i:class)
+ELSE		(?i:else)
+FI		(?i:fi)
+IF		(?i:if)
+WHILE		(?i:while)
+IN		(?i:in)
+INHERITS	(?i:inherits)
+ISVOID		(?i:isvoid)
+LET		(?i:let)
+LOOP		(?i:loop)
+POOL		(?i:pool)
+THEN		(?i:then)
+CASE		(?i:case)
+ESAC		(?i:esac)
+NEW		(?i:new)
+OF		(?i:of)
+NOT		(?i:not)
+
+/** True or false with first letter lower case **/
+FALSE		f(?i:alse)
+TRUE		t(?i:rue)
+
+
 
 %%
 
@@ -57,24 +120,295 @@ DARROW          =>
   *  Nested comments
   */
 
+/** keeping track of the line numbers **/
+{NEW_LINE}  {curr_lineno++;}
 
- /*
-  *  The multiple-character operators.
-  */
-{DARROW}		{ return (DARROW); }
+/** comment strings are avoided **/
+{LINE_COMMENT}	{}
 
- /*
-  * Keywords are case-insensitive except for the values true and false,
-  * which must begin with a lower-case letter.
-  */
+/** rules for handling multiline comment **/ 
+{BEGIN_COMMENT}	{
+    BEGIN(COMMENT);
+    comment_depth++;
+}	
 
+{END_COMMENT} {
+    cool_yylval.error_msg = "Unmatched *)";
+    return ERROR;
+}
 
- /*
+ /* When in COMMENT state */
+<COMMENT>{
+    /* Increment comment_depth on new comment open */
+    {BEGIN_COMMENT}	{
+			    ++comment_depth;
+			}
+    /* Decrement comment depth on close and exit COMMENT state on depth==0*/
+    {END_COMMENT}   {
+		       if(--comment_depth==0)
+			       BEGIN(INITIAL);
+		   }
+    /* Error when EOF in comment */
+    <<EOF>> {
+	BEGIN(INITIAL);
+	cool_yylval.error_msg = "EOF in comment";
+	return ERROR;
+    }
+/* increment on new line */
+    {NEW_LINE}  {curr_lineno++;}
+    \\\n  {curr_lineno++;}
+    /* reject all other characters inside comment  */
+    . {}
+}
+
+/*
   *  String constants (C syntax)
   *  Escape sequence \c is accepted for all characters c. Except for 
   *  \n \t \b \f, the result is c.
   *
   */
+ /*Check string begin with ". If so assign pointer ro string buffer and start
+ * STING state*/
+
+{QUOTE} {
+	    string_buf_ptr = string_buf;
+	    BEGIN(STRING);
+	}
+
+<STRING>{
+    /* Check for closing " if so append endofline and create entry on string
+     * table */
+
+	{QUOTE} {
+		    *string_buf_ptr++ = '\0';
+		    BEGIN(INITIAL);
+		    cool_yylval.symbol = stringtable.add_string(string_buf);
+		    return STR_CONST;
+		}
 
 
+	/* Error on null characters in string */
+	{NULL_CHARACTERS} {
+			cool_yylval.error_msg = "String contains null character";
+    			return ERROR;
+			}
+
+	/* increment line on new line but return ERROR */
+	{NEW_LINE} {
+			curr_lineno++;
+			cool_yylval.error_msg = "Unterminated string constant";
+			BEGIN(INITIAL);
+			return ERROR;			
+	    	}
+
+	/* return EOF in string error  */
+	<<EOF>>	{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "EOF in string constant";
+		   return ERROR;
+	}
+
+	/* For the following rules before each append string length is checked
+	 * to not exceed max string length */
+
+	/* check character escape in string if so take as c and append to string */
+	\\c {
+	    if(len_check()){
+		*string_buf_ptr++ = 'c';
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+	
+	/* check tab in string if so take as \t and append to string */
+	\\t {
+	    if(len_check()){
+		*string_buf_ptr++ = '\t';
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+
+	/* check backspace in string if so take as \b and append to string */
+	\\b {
+	    if(len_check()){
+		*string_buf_ptr++ = '\b';
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+
+	/* check newline in string if so take as \n and append to string */
+	\\n {
+	    if(len_check()){
+		*string_buf_ptr++ = '\n';
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+
+	/* check formfeed in string if so take as \f and append to string */
+	\\f {
+	    if(len_check()){
+		*string_buf_ptr++ = '\f';
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+
+	/* check escaped newline in string if so take as \n and append to string
+	 * and increment line */
+	\\\n {
+	
+	    curr_lineno++;
+
+	    if(len_check()){
+		*string_buf_ptr++ = '\n';
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+
+	/* For all other escaped characters append character to string */
+	\\. {
+	
+	    if(len_check()){
+		*string_buf_ptr++ = yytext[1];
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	
+	}
+
+	/* For all other characters append directly to string */
+	. {
+	    if(len_check()){
+		*string_buf_ptr++ = yytext[0];
+	    }else{
+		   BEGIN(INITIAL);
+		   cool_yylval.error_msg = "string too long";
+		   return ERROR;
+	    }
+	}
+}
+
+ /*
+  *  KEYWORDS
+  */
+
+{CLASS}	    {return CLASS;}
+{ELSE}	    {return ELSE;}
+{IF}	    {return IF;}
+{FI}	    {return FI;}
+{WHILE}	    {return WHILE;}
+{IN}	    {return IN;}
+{INHERITS}  {return INHERITS;}
+{ISVOID}    {return ISVOID;}
+{LET}	    {return LET;}
+{LOOP}      {return LOOP;}
+{POOL}      {return POOL;}
+{THEN}      {return THEN;}
+{CASE}      {return CASE;}
+{ESAC}      {return ESAC;}
+{NEW}       {return NEW;}
+{OF}        {return OF;}
+{NOT}       {return NOT;}
+
+ /*
+  *  EXTRA TOKENS
+  */
+
+"("		{return '(';}
+")"		{return ')';}
+"."		{return '.';}
+"@"		{return '@';}
+"~"		{return '~';}
+"*"		{return '*';}
+"/"		{return '/';}
+"+"		{return '+';}
+"-"		{return '-';}
+{LE}	    	{return LE;}
+"<"		{return '<';}
+"="		{return '=';}
+{ASSIGN}	{return ASSIGN;}
+"{"		{return '{';}
+"}"		{return '}';}
+":"		{return ':';}
+","	 	{return ',';}
+";"		{return ';';}
+{DARROW}	{return DARROW;}
+
+
+ /*
+  *  BOOLEAN
+  */
+
+{TRUE}	{
+	    cool_yylval.boolean = true;
+	    return (BOOL_CONST);
+      
+	}
+
+{FALSE}	{
+	    cool_yylval.boolean = false;
+	    return (BOOL_CONST);
+      
+	}
+
+ /*
+  *  INTEGER
+  */
+
+{INTEGER}   {
+		cool_yylval.symbol = inttable.add_string(yytext);
+		return (INT_CONST);
+	    }
+
+
+ /*
+  *  TYPE IDENTIFIER
+  */
+
+{TYPEID}   {
+		cool_yylval.symbol = idtable.add_string(yytext); 
+		return (TYPEID);
+	    }
+ /*
+  *  OBJECT IDENTIFIER
+  */
+
+{OBJECTID}   {
+		cool_yylval.symbol = idtable.add_string(yytext); 
+		return (OBJECTID);
+	    }
+
+ /* Whitespaces & other extras  */
+
+ /* Handle multiple newlines */
+\n+ {
+   curr_lineno += yyleng;
+}
+
+ /* remove whitespaces  */ 
+[\t\r\f\v ]+ ;
+
+ /* Give error for non token elements in code */
+. {
+    cool_yylval.error_msg = yytext;
+    return ERROR;
+}
 %%
